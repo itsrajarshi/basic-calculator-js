@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import styles from "./Calculator.module.css";
 
 const Calculator = () => {
@@ -7,50 +7,8 @@ const Calculator = () => {
   const [waitingForSecondOperand, setWaitingForSecondOperand] = useState(false);
   const [operator, setOperator] = useState(null);
 
-  const inputDigit = (digit) => {
-    if (waitingForSecondOperand) {
-      setDisplay(digit);
-      setWaitingForSecondOperand(false);
-    } else {
-      setDisplay(display === "0" ? digit : display + digit);
-    }
-  };
-
-  const inputDecimal = () => {
-    if (waitingForSecondOperand) {
-      setDisplay("0.");
-      setWaitingForSecondOperand(false);
-      return;
-    }
-
-    if (!display.includes(".")) {
-      setDisplay(display + ".");
-    }
-  };
-
-  const clearDisplay = () => {
-    setDisplay("0");
-    setFirstOperand(null);
-    setWaitingForSecondOperand(false);
-    setOperator(null);
-  };
-
-  const performOperation = (nextOperator) => {
-    const inputValue = parseFloat(display);
-
-    if (firstOperand === null) {
-      setFirstOperand(inputValue);
-    } else if (operator) {
-      const result = calculate(firstOperand, inputValue, operator);
-      setDisplay(String(result));
-      setFirstOperand(result);
-    }
-
-    setWaitingForSecondOperand(true);
-    setOperator(nextOperator);
-  };
-
-  const calculate = (firstOperand, secondOperand, operator) => {
+  // Memoized calculation function
+  const calculate = useCallback((firstOperand, secondOperand, operator) => {
     switch (operator) {
       case "+":
         return firstOperand + secondOperand;
@@ -63,9 +21,58 @@ const Calculator = () => {
       default:
         return secondOperand;
     }
-  };
+  }, []);
 
-  const handleEquals = () => {
+  const inputDigit = useCallback(
+    (digit) => {
+      if (waitingForSecondOperand) {
+        setDisplay(digit);
+        setWaitingForSecondOperand(false);
+      } else {
+        setDisplay(display === "0" ? digit : display + digit);
+      }
+    },
+    [waitingForSecondOperand, display]
+  );
+
+  const inputDecimal = useCallback(() => {
+    if (waitingForSecondOperand) {
+      setDisplay("0.");
+      setWaitingForSecondOperand(false);
+      return;
+    }
+
+    if (!display.includes(".")) {
+      setDisplay(display + ".");
+    }
+  }, [waitingForSecondOperand, display]);
+
+  const clearDisplay = useCallback(() => {
+    setDisplay("0");
+    setFirstOperand(null);
+    setWaitingForSecondOperand(false);
+    setOperator(null);
+  }, []);
+
+  const performOperation = useCallback(
+    (nextOperator) => {
+      const inputValue = parseFloat(display);
+
+      if (firstOperand === null) {
+        setFirstOperand(inputValue);
+      } else if (operator) {
+        const result = calculate(firstOperand, inputValue, operator);
+        setDisplay(String(result));
+        setFirstOperand(result);
+      }
+
+      setWaitingForSecondOperand(true);
+      setOperator(nextOperator);
+    },
+    [firstOperand, operator, display, calculate]
+  );
+
+  const handleEquals = useCallback(() => {
     if (operator === null || waitingForSecondOperand) {
       return;
     }
@@ -76,29 +83,32 @@ const Calculator = () => {
     setFirstOperand(result);
     setWaitingForSecondOperand(true);
     setOperator(null);
-  };
+  }, [operator, waitingForSecondOperand, display, firstOperand, calculate]);
 
-  const handleKeyPress = (event) => {
-    const { key } = event;
-    if (/\d/.test(key)) {
-      inputDigit(key);
-    } else if (key === ".") {
-      inputDecimal();
-    } else if (key === "Enter" || key === "=") {
-      handleEquals();
-    } else if (key === "Escape") {
-      clearDisplay();
-    } else if (["+", "-", "*", "/"].includes(key)) {
-      performOperation(key === "*" ? "*" : key);
-    }
-  };
+  const handleKeyPress = useCallback(
+    (event) => {
+      const { key } = event;
+      if (/\d/.test(key)) {
+        inputDigit(key);
+      } else if (key === ".") {
+        inputDecimal();
+      } else if (key === "Enter" || key === "=") {
+        handleEquals();
+      } else if (key === "Escape") {
+        clearDisplay();
+      } else if (["+", "-", "*", "/"].includes(key)) {
+        performOperation(key === "*" ? "*" : key);
+      }
+    },
+    [inputDigit, inputDecimal, handleEquals, clearDisplay, performOperation]
+  );
 
-  useEffect(() => {
+  React.useEffect(() => {
     window.addEventListener("keydown", handleKeyPress);
     return () => {
       window.removeEventListener("keydown", handleKeyPress);
     };
-  }, [display, firstOperand, operator, waitingForSecondOperand]);
+  }, [handleKeyPress]);
 
   const CalculatorButton = ({ className = "", value, onClick }) => (
     <button className={`${styles.button} ${className}`} onClick={onClick}>
